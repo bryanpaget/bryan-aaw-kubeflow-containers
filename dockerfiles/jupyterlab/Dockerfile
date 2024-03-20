@@ -203,7 +203,7 @@ COPY vscode-overrides.json $CS_TEMP_HOME/Machine/settings.json
 # Languagepacks.json needs to exist for code-server to recognize the languagepack
 COPY languagepacks.json $CS_TEMP_HOME/
 
-RUN jupyter serverextension enable --py jupyter_server_proxy && \
+RUN jupyter server extension enable --py jupyter_server_proxy && \
     jupyter nbextension enable codefolding/main --sys-prefix && \
     jupyter labextension install --no-build \
       '@jupyterlab/translation-extension' \
