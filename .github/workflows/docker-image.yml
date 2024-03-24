@@ -27,9 +27,6 @@ jobs:
       id: date
       run: echo date=$(date +'%Y-%m-%d--%M-%S') >> $GITHUB_OUTPUT
 
-    - name: Free up all available disk space before building
-      run: ./.github/scripts/cleanup_runner.sh
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
       
