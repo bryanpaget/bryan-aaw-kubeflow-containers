@@ -1,11 +1,22 @@
-ARG BASE_VERSION=2024-03-19
-FROM quay.io/jupyter/datascience-notebook:$BASE_VERSION
+ARG BASE_VERSION=2023-12-25
+FROM quay.io/jupyter/datascience-notebook:$BASE_VERSION as aaw-jupyterlab
 
-# Must be set in deepest image
 ENV DEFAULT_JUPYTER_URL=/lab 
 
+ARG NB_USER="jovyan"
+ARG NB_UID="1000"
+ARG NB_GID="100"
+
+ENV NB_USER="${NB_USER}" \
+    NB_UID=${NB_UID} \
+    NB_GID=${NB_GID} \
+    CONDA_DIR=/opt/conda \
+    PATH=$PATH:/opt/conda/bin \
+    NB_USER="jovyan" \
+    HOME="/home/${NB_USER}"
+
 # If using the docker bit in other Dockerfiles, this must get written over in a later layer
-ENV GIT_EXAMPLE_NOTEBOOKS=https://github.com/StatCan/aaw-contrib-r-notebooks.git
+ENV GIT_EXAMPLE_NOTEBOOKS=https://gitlab.k8s.cloud.statcan.ca/business-transformation/aaw/aaw-contrib-jupyter-notebooks
 
 ENV CS_DISABLE_FILE_DOWNLOADS=1
 ENV CS_TEMP_HOME=/etc/share/code-server
@@ -36,9 +47,10 @@ ARG QUARTO_VERSION=1.4.176
 ARG QUARTO_SHA=c06edd8930903a1018a27eb9f70fb9037b28a3cd8a7eb6299e8136876b4e11b3
 ARG QUARTO_URL=https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz
 
-ARG RSTUDIO_VERSION=2023.06.2-561
-ARG SHA256=f7ec39bc79b2f5ca8e653580ff15097b8275989fa1efe89f4f8ac17a926c94e3
+ARG RSTUDIO_VERSION=2023.12.0-369
+ARG RSTUDIO_SHA256=452804d61bfee2996d98d1c406b31d93e03e58df2a34996b821925ce0c04ffe8
 
+# OpenM install
 # Install OpenM++ MPI
 ARG OMPP_VERSION="1.15.6"
 # IMPORTANT: Don't forget to update the version number in the openmpp.desktop file!!
@@ -50,6 +62,9 @@ ENV OMPP_INSTALL_DIR=/opt/openmpp/${OMPP_VERSION}
 # ---
 
 USER root
+COPY clean-layer.sh /usr/bin/clean-layer.sh
+RUN chmod +x /usr/bin/clean-layer.sh
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # alien is for installing RPM packages, not sure if we need this
     alien \
@@ -66,11 +81,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libarchive-tools \
     libmagic1 \
     libpng-dev \
+    libwebp7 \
     libxmu6 \
     nginx \
     numactl \
     openjdk-8-jre \
     openssl \
+    openmpi-bin \
+    libopenmpi-dev \
     ranger \
     software-properties-common \
     tar \
@@ -82,19 +100,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     wget \
     zip && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    clean-layer.sh
 
 RUN pip3 --no-cache-dir install --quiet \
+      cryptography==41.0.6 \
       fire \
       git+https://github.com/betatim/vscode-binder \
       git+https://github.com/zachomedia/s3fs@8aa929f78666ff9e323cde7d9be9262db5a17985 \
       joblib \
       # JupyterLab Stuff
       jupyter_contrib_nbextensions \
-      jupyter-dash \
+      dash \
       jupyter-lsp \
       jupyter-rsession-proxy==2.2.0 \
-      jupyter-server-proxy \
+      jupyter-server-proxy==4.1.2 \
       jupyter-shiny-proxy \
       jupyterlab_execute_time \
       jupyterlab-language-pack-fr-FR \
@@ -102,13 +122,16 @@ RUN pip3 --no-cache-dir install --quiet \
       # kubeflow-mpi \
       kubeflow-pytorchjob \
       kubeflow-tfjob \
+      kubeflow-training \
       lxml \
       markupsafe \
       # maybe we can remove minio?
       minio \
       mpmath \
       oauthlib \
+      pexpect==4.9.0 \
       pillow \
+      pyarrow \
       pyjwt \
       pyodbc \
       pyyaml \
@@ -128,7 +151,7 @@ RUN mamba install --quiet --yes \
       'r-languageserver' \
       'nb_conda_kernels' \
       'python-lsp-server' && \
-    mamba clean --all -f -y && \
+    clean-layer.sh && \ 
     fix-permissions $CONDA_DIR && \
     fix-permissions /home/$NB_USER
 
@@ -138,7 +161,8 @@ RUN chmod +x /usr/local/bin/aaw-suspend-server.sh
 # --- CLI Stuff
 
 # maybe we can remove this minio stuff?
-COPY --from=minio/mc:RELEASE.2022-03-17T20-25-06Z /bin/mc /usr/local/bin/mc-original
+# MinIO Client install
+COPY --from=minio/mc:RELEASE.2024-03-09T06-43-06Z /bin/mc /usr/local/bin/mc-original
 
 # Add helpers for shell initialization
 COPY shell_helpers.sh /tmp/shell_helpers.sh
@@ -151,7 +175,7 @@ RUN \
     && sudo mv ./kubectl /usr/local/bin/kubectl \
   && \
     # AzureCLI
-    curl -sLO https://aka.ms/InstallAzureCLIDeb \
+    curl -sLO "${AZCLI_URL}" \
     && bash InstallAzureCLIDeb \
     && rm InstallAzureCLIDeb \
     && echo "azcli: ok" \
@@ -204,11 +228,11 @@ COPY vscode-overrides.json $CS_TEMP_HOME/Machine/settings.json
 COPY languagepacks.json $CS_TEMP_HOME/
 
 RUN jupyter server extension enable --py jupyter_server_proxy && \
-    jupyter nbextension enable codefolding/main --sys-prefix && \
-    jupyter labextension install --no-build \
+    # commenting out since we are using jupyter notebook 7 which is incompatible with nbextension
+    #jupyter nbextension enable codefolding/main --sys-prefix && \
+    jupyter labextension enable \
       '@jupyterlab/translation-extension' \
       '@jupyterlab/server-proxy' \
-      'jupyterlab-plotly' \
       'nbdime-jupyterlab' \
     && \
     jupyter lab build && \
@@ -234,6 +258,10 @@ RUN npm i -g \
 # OpenM install
 
 COPY jupyter-ompp-proxy/ /opt/jupyter-ompp-proxy/
+COPY start-custom.sh start-oms.sh restart-oms.sh /usr/local/bin/
+
+RUN chmod +x /usr/local/bin/start-oms.sh && \
+    chmod +x /usr/local/bin/restart-oms.sh
 
 # OpenM++ expects sqlite to be installed (not just libsqlite)
 # Customize and rebuild omp-ui for jupyter-ompp-proxy install
@@ -263,7 +291,7 @@ COPY jupyterlab-overrides.json /opt/conda/share/jupyter/lab/settings/overrides.j
 # -- RStudio Server
 
 RUN curl --silent -L --fail "https://download2.rstudio.org/server/jammy/amd64/rstudio-server-${RSTUDIO_VERSION}-amd64.deb" > /tmp/rstudio.deb && \
-    echo "${SHA256} /tmp/rstudio.deb" | sha256sum -c - && \
+    echo "${RSTUDIO_SHA256} /tmp/rstudio.deb" | sha256sum -c - && \
     apt-get install --no-install-recommends -y /tmp/rstudio.deb && \
     rm /tmp/rstudio.deb && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
@@ -271,7 +299,9 @@ RUN curl --silent -L --fail "https://download2.rstudio.org/server/jammy/amd64/rs
     echo "www-frame-origin=none" >> /etc/rstudio/rserver.conf && \
     echo "www-enable-origin-check=1" >> /etc/rstudio/rserver.conf && \
     echo "www-same-site=lax" >> /etc/rstudio/rserver.conf && \
-    echo "restrict-directory-view=1" >> /etc/rstudio/rsession.conf
+    echo "restrict-directory-view=1" >> /etc/rstudio/rsession.conf && \
+    # https://github.com/rstudio/rstudio/issues/14060
+    echo "rsession-ld-library-path=/opt/conda/lib" >> /etc/rstudio/rserver.conf 
 
 RUN wget -q ${QUARTO_URL} -O /tmp/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz && \
     echo "${QUARTO_SHA} /tmp/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz" | sha256sum -c - && \
@@ -312,7 +342,10 @@ RUN cat /tmp/Rprofile.site >> /opt/conda/lib/R/etc/Rprofile.site && rm /tmp/Rpro
 # Add .Rprofile to /tmp so we can install it in start-custom.sh
 COPY .Rprofile /tmp/.Rprofile
 
-# Point conda to Artifactory repository
+# Copy over Instructions to Home directory
+ADD connect-to-filer.md /home/$NB_USER/connect-to-filer.md
+
+# Point mamba to Artifactory repository
 RUN mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-forge-remote --system && \
     mamba config --remove channels conda-forge --system && \
     mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-forge-nvidia --system && \

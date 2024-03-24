@@ -1,10 +1,12 @@
-FROM aaw-jupyterlab as aaw-jupyterlab-sas
+FROM zone-jupyterlab as zone-jupyterlab-sas
 
 ENV PATH=$PATH:/usr/local/SASHome/SASFoundation/9.4/bin
 ENV PATH=$PATH:/usr/local/SASHome/SASPrivateJavaRuntimeEnvironment/9.4/jre/bin
 ENV SAS_HADOOP_JAR_PATH=/opt/hadoop
 
-ENV SASPY_VERSION="4.1.0"
+ENV SASPY_VERSION="5.4.0"
+
+ENV PYTHON_VERSION="3.11"
 
 ARG AZURE_ACCOUNT_NAME=jupyter
 ENV ACCOUNT_NAME=${AZURE_ACCOUNT_NAME}
@@ -24,9 +26,6 @@ RUN groupadd -g 1337 supergroup && \
 
 COPY --from=SASHome /usr/local/SASHome /usr/local/SASHome
 
-# maybe we can remove this?
-COPY --from=minio/mc:RELEASE.2022-03-17T20-25-06Z /bin/mc /usr/local/bin/mc-original
-
 RUN ln -s /usr/local/SASHome/SASFoundation/9.4/bin/sas_en /usr/local/bin/sas && \
     usermod -a -G sasstaff jovyan && \
     chmod -R 0775 /usr/local/SASHome/studioconfig
@@ -35,7 +34,7 @@ WORKDIR /home/sas
 RUN /usr/local/SASHome/SASFoundation/9.4/utilities/bin/setuid.sh
 
 # SASPY
-COPY sascfg.py /opt/conda/lib/python3.9/site-packages/saspy/sascfg.py
+COPY sascfg.py /opt/conda/lib/python${PYTHON_VERSION}}/site-packages/saspy/sascfg.py
 RUN jupyter nbextension install --py sas_kernel.showSASLog && \
     jupyter nbextension enable sas_kernel.showSASLog --py && \
     jupyter nbextension install --py sas_kernel.theme && \
