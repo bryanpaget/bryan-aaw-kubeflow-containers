@@ -4,8 +4,8 @@ FROM quay.io/jupyter/datascience-notebook:$BASE_VERSION as aaw-jupyterlab
 ENV DEFAULT_JUPYTER_URL=/lab 
 
 ARG NB_USER="jovyan"
-ARG NB_UID="1000"
-ARG NB_GID="100"
+    NB_UID="1000"
+    NB_GID="100"
 
 ENV NB_USER="${NB_USER}" \
     NB_UID=${NB_UID} \
@@ -15,29 +15,13 @@ ENV NB_USER="${NB_USER}" \
     NB_USER="jovyan" \
     HOME="/home/${NB_USER}"
 
-# If using the docker bit in other Dockerfiles, this must get written over in a later layer
-ENV GIT_EXAMPLE_NOTEBOOKS=https://gitlab.k8s.cloud.statcan.ca/business-transformation/aaw/aaw-contrib-jupyter-notebooks
-
 ENV CS_DISABLE_FILE_DOWNLOADS=1
-ENV CS_TEMP_HOME=/etc/share/code-server
-ENV CS_DEFAULT_HOME=$HOME/.local/share/code-server
-ENV SERVICE_URL=https://extensions.coder.com/api
+    CS_TEMP_HOME=/etc/share/code-server
+    CS_DEFAULT_HOME=$HOME/.local/share/code-server
+    SERVICE_URL=https://extensions.coder.com/api
 
 ENV PATH="/home/jovyan/.local/bin/:${PATH}"
 ENV PATH=$PATH:/usr/lib/rstudio-server/bin
-
-ARG KUBECTL_VERSION=v1.15.10
-ARG KUBECTL_URL=https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
-ARG KUBECTL_SHA=38a0f73464f1c39ca383fd43196f84bdbe6e553fe3e677b6e7012ef7ad5eaf2b
-
-ARG AZCLI_URL=https://aka.ms/InstallAzureCLIDeb
-
-ARG TRINO_URL=https://repo1.maven.org/maven2/io/trino/trino-cli/410/trino-cli-410-executable.jar
-ARG TRINO_SHA=f32c257b9cfc38e15e8c0b01292ae1f11bda2b23b5ce1b75332e108ca7bf2e9b
-
-ARG ARGO_CLI_VERSION=v3.4.5
-ARG ARGO_CLI_URL=https://github.com/argoproj/argo-workflows/releases/download/${ARGO_CLI_VERSION}/argo-linux-amd64.gz
-ARG ARGO_CLI_SHA=0528ff0c0aa87a3f150376eee2f1b26e8b41eb96578c43d715c906304627d3a1 
 
 ARG VSCODE_VERSION=4.17.0
 ARG VSCODE_SHA=a256654aae171699f4dd869dd7f02588ff60411d6a88e95a3e8d997d72efe378
@@ -66,17 +50,11 @@ COPY clean-layer.sh /usr/bin/clean-layer.sh
 RUN chmod +x /usr/bin/clean-layer.sh
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # alien is for installing RPM packages, not sure if we need this
-    alien \
-    # byobu is a terminal multiplexer, not sure if we need this
-    byobu \
     curl \
     dirmngr \
     dos2unix \
-    gdebi-core \
     htop \
     jq \
-    language-pack-fr \
     less \
     libarchive-tools \
     libmagic1 \
@@ -119,14 +97,8 @@ RUN pip3 --no-cache-dir install --quiet \
       jupyterlab_execute_time \
       jupyterlab-language-pack-fr-FR \
       jupyterlab-lsp \
-      # kubeflow-mpi \
-      kubeflow-pytorchjob \
-      kubeflow-tfjob \
-      kubeflow-training \
       lxml \
       markupsafe \
-      # maybe we can remove minio?
-      minio \
       mpmath \
       oauthlib \
       pexpect==4.9.0 \
@@ -155,45 +127,8 @@ RUN mamba install --quiet --yes \
     fix-permissions $CONDA_DIR && \
     fix-permissions /home/$NB_USER
 
-COPY aaw-suspend-server.sh /usr/local/bin
-RUN chmod +x /usr/local/bin/aaw-suspend-server.sh
-
-# --- CLI Stuff
-
-# maybe we can remove this minio stuff?
-# MinIO Client install
-COPY --from=minio/mc:RELEASE.2024-03-09T06-43-06Z /bin/mc /usr/local/bin/mc-original
-
 # Add helpers for shell initialization
 COPY shell_helpers.sh /tmp/shell_helpers.sh
-
-RUN \ 
-    # kubectl
-    curl -LO "${KUBECTL_URL}" \
-    && echo "${KUBECTL_SHA} kubectl" | sha256sum -c - \
-    && chmod +x ./kubectl \
-    && sudo mv ./kubectl /usr/local/bin/kubectl \
-  && \
-    # AzureCLI
-    curl -sLO "${AZCLI_URL}" \
-    && bash InstallAzureCLIDeb \
-    && rm InstallAzureCLIDeb \
-    && echo "azcli: ok" \
-  && \
-    # trino cli
-    wget -q "${TRINO_URL}" -O /tmp/trino-original \
-    && echo ${TRINO_SHA} /tmp/trino-original | sha256sum -c \
-    && echo "trinocli: ok" \
-    && chmod +x /tmp/trino-original \
-    && sudo mv /tmp/trino-original /usr/local/bin/trino-original \
-  && \
-    # argo cli
-    curl -sLO  ${ARGO_CLI_URL}\
-    && echo "${ARGO_CLI_SHA}  argo-linux-amd64.gz"  | sha256sum -c - \
-    && gunzip argo-linux-amd64.gz \
-    && chmod +x argo-linux-amd64 \
-    && sudo mv ./argo-linux-amd64 /usr/local/bin/argo \
-    && argo version
 
 # --- JupyterLab Stuff
 
@@ -222,18 +157,12 @@ RUN wget -q "${VSCODE_URL}" -O ./vscode.deb \
     mv $CS_DEFAULT_HOME/* $CS_TEMP_HOME && \
     fix-permissions $CS_TEMP_HOME
 
-# Fix for VSCode extensions and CORS
-# Languagepacks.json needs to exist for code-server to recognize the languagepack
-COPY languagepacks.json $CS_TEMP_HOME/
-
 RUN jupyter server extension enable --py jupyter_server_proxy && \
     # commenting out since we are using jupyter notebook 7 which is incompatible with nbextension
     #jupyter nbextension enable codefolding/main --sys-prefix && \
     jupyter labextension enable \
-      '@jupyterlab/translation-extension' \
       '@jupyterlab/server-proxy' \
-      'nbdime-jupyterlab' \
-    && \
+      'nbdime-jupyterlab' && \
     jupyter lab build && \
     jupyter lab clean && \
   npm cache clean --force && \
@@ -325,18 +254,9 @@ USER root
 WORKDIR /home/$NB_USER
 EXPOSE 8888
 COPY start-custom.sh /usr/local/bin/
-# we may want to remove this mc (minio)
-COPY mc-tenant-wrapper.sh /usr/local/bin/mc
-COPY trino-wrapper.sh /usr/local/bin/trino
 
 # Add .Rprofile to /tmp so we can install it in start-custom.sh
 COPY .Rprofile /tmp/.Rprofile
-
-# Point mamba to Artifactory repository
-RUN mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-forge-remote --system && \
-    mamba config --remove channels conda-forge --system && \
-    mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-forge-nvidia --system && \
-    mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-pytorch-remote --system
 
 USER $NB_USER
 ENTRYPOINT ["tini", "--"]
