@@ -4,8 +4,8 @@ FROM quay.io/jupyter/datascience-notebook:$BASE_VERSION as aaw-jupyterlab
 ENV DEFAULT_JUPYTER_URL=/lab 
 
 ARG NB_USER="jovyan"
-    NB_UID="1000"
-    NB_GID="100"
+ARG NB_UID="1000"
+ARG NB_GID="100"
 
 ENV NB_USER="${NB_USER}" \
     NB_UID=${NB_UID} \
