@@ -15,9 +15,9 @@ ENV NB_USER="${NB_USER}" \
     NB_USER="jovyan" \
     HOME="/home/${NB_USER}"
 
-ENV CS_DISABLE_FILE_DOWNLOADS=1
-    CS_TEMP_HOME=/etc/share/code-server
-    CS_DEFAULT_HOME=$HOME/.local/share/code-server
+ENV CS_DISABLE_FILE_DOWNLOADS=1 \
+    CS_TEMP_HOME=/etc/share/code-server \
+    CS_DEFAULT_HOME=$HOME/.local/share/code-server \
     SERVICE_URL=https://extensions.coder.com/api
 
 ENV PATH="/home/jovyan/.local/bin/:${PATH}"
