@@ -222,7 +222,6 @@ RUN wget -q "${VSCODE_URL}" -O ./vscode.deb \
     mv $CS_DEFAULT_HOME/* $CS_TEMP_HOME && \
     fix-permissions $CS_TEMP_HOME
 
-COPY vscode-overrides.json $CS_TEMP_HOME/Machine/settings.json
 # Fix for VSCode extensions and CORS
 # Languagepacks.json needs to exist for code-server to recognize the languagepack
 COPY languagepacks.json $CS_TEMP_HOME/
@@ -330,20 +329,8 @@ COPY start-custom.sh /usr/local/bin/
 COPY mc-tenant-wrapper.sh /usr/local/bin/mc
 COPY trino-wrapper.sh /usr/local/bin/trino
 
-# Add --user to all pip install calls and point pip to Artifactory repository
-COPY pip.conf /tmp/pip.conf
-RUN cat /tmp/pip.conf >> /etc/pip.conf && rm /tmp/pip.conf \
-    && pip config set global.timeout 300
-
-# Point R to Artifactory repository
-COPY Rprofile.site /tmp/Rprofile.site
-RUN cat /tmp/Rprofile.site >> /opt/conda/lib/R/etc/Rprofile.site && rm /tmp/Rprofile.site
-
 # Add .Rprofile to /tmp so we can install it in start-custom.sh
 COPY .Rprofile /tmp/.Rprofile
-
-# Copy over Instructions to Home directory
-ADD connect-to-filer.md /home/$NB_USER/connect-to-filer.md
 
 # Point mamba to Artifactory repository
 RUN mamba config --add channels http://jfrog-platform-artifactory.jfrog-system:8081/artifactory/api/conda/conda-forge-remote --system && \

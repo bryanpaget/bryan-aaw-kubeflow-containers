@@ -13,12 +13,6 @@ else
   sleep infinity
 fi
 
-test -z "$GIT_EXAMPLE_NOTEBOOKS" || git clone "$GIT_EXAMPLE_NOTEBOOKS"
-
-if [ ! -e /home/$NB_USER/.Rprofile ]; then
-    cat /tmp/.Rprofile >> /home/$NB_USER/.Rprofile && rm -rf /tmp/.Rprofile
-fi
-
 # Configure the shell! If not already configured.
 if [ ! -f /home/$NB_USER/.zsh-installed ]; then
     if [ -f /tmp/oh-my-zsh-install.sh ]; then
@@ -120,7 +114,7 @@ export JWT="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
 #  echo "adding include-system-site-packages"
 #fi
 
-echo "Checking for .condarc file in hom directory"
+echo "Checking for .condarc file in home directory"
 if [[ -f "$HOME/.condarc" ]]; then
   echo ".condarc file exists, not going to do anything"
 else
@@ -137,19 +131,6 @@ if [ ! -d "$CS_DEFAULT_HOME/Machine" ]; then
   cp -r "$CS_TEMP_HOME/." "$CS_DEFAULT_HOME"
 fi
 
-# aaw-dev override settings
-if [[ "$KUBERNETES_SERVICE_HOST" =~ ".131." ]]; then
-  echo "Updating jfrog package config for Dev envrionment"
-  
-  pip config --user set global.index-url https://jfrog.aaw.cloud.statcan.ca/artifactory/api/pypi/pypi-remote/simple
-
-  # remove existing channels in conda system config file
-  rm /opt/conda/.condarc
-
-  conda config --add channels https://jfrog.aaw.cloud.statcan.ca/artifactory/api/conda/conda-forge-remote
-  conda config --add channels https://jfrog.aaw.cloud.statcan.ca/artifactory/api/conda/conda-forge-nvidia
-  conda config --add channels https://jfrog.aaw.cloud.statcan.ca/artifactory/api/conda/conda-pytorch-remote 
-fi
 
 echo "--------------------starting jupyter--------------------"
 
